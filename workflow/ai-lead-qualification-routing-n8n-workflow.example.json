@@ -1,0 +1,514 @@
+{
+  "name": "AI Lead Qualification & Routing Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8a6e0251-cb10-47ef-acbd-14061b8b16cf",
+      "name": "01_Webhook_Lead_Intake",
+      "webhookId": "9925eaa6-ce47-4808-93d1-696931bc23a8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cd51f1fb-9894-4b4f-8cd2-56af75bc48ed",
+              "leftValue": "={{ $json.body.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "292fab29-c6c4-40f9-891d-99ca21d24dcf",
+              "leftValue": "={{ $json.body.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "bdec3655-c059-4f1e-b17e-688f82a064c7",
+      "name": "02_Check_Email_And_Phone"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI Lead Qualification CRM",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 15895539,
+          "mode": "list",
+          "cachedResultName": "Errors",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now }}",
+            "raw_input": "={{ JSON.stringify($json.body) }}",
+            "error_reason": "={{ !$json.body.email ? \"Missing email\" : \"Missing phone\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "raw_input",
+              "displayName": "raw_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_reason",
+              "displayName": "error_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        416,
+        -96
+      ],
+      "id": "2a1ad8db-e37b-4e7a-8b2b-3c8730e3fc6c",
+      "name": "03_Write_Error_To_Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "mxBNuktdt2XsQVop",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.2,\n  \"response_format\": {\n    \"type\": \"json_object\"\n  },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a lead qualification assistant. Return only valid JSON. Do not include markdown, explanation, or extra text.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this lead for an automation service. Return strict JSON with exactly these keys: score, pain_point, urgency_level, next_action, follow_up_message. score must be one of Hot, Warm, Cold. urgency_level must be one of High, Medium, Low.\\n\\nLead data:\\nName: {{ $json.body.name }}\\nEmail: {{ $json.body.email }}\\nPhone: {{ $json.body.phone }}\\nService needed: {{ $json.body.service_needed }}\\nBudget: {{ $json.body.budget }}\\nUrgency: {{ $json.body.urgency }}\\nMessage: {{ $json.body.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        96
+      ],
+      "id": "00690029-077d-487d-b2ab-d93c88737e3a",
+      "name": "04_OpenAI_Classify_Lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((item) => {\n  const aiContent = item.json.choices?.[0]?.message?.content;\n\n  if (!aiContent) {\n    throw new Error(\"OpenAI response missing choices[0].message.content\");\n  }\n\n  let parsed;\n\n  try {\n    parsed = JSON.parse(aiContent);\n  } catch (error) {\n    throw new Error(\"OpenAI response was not valid JSON: \" + aiContent);\n  }\n\n  return {\n    json: {\n      ai_score: parsed.score,\n      pain_point: parsed.pain_point,\n      urgency_level: parsed.urgency_level,\n      next_action: parsed.next_action,\n      follow_up_message: parsed.follow_up_message,\n      openai_raw_content: aiContent\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        96
+      ],
+      "id": "447608f1-d278-4b4f-89d7-f145ac99da46",
+      "name": "05_Parse_OpenAI_JSON"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI Lead Qualification CRM",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Leads",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now }}",
+            "name": "={{ $('01_Webhook_Lead_Intake').item.json.body.name }}",
+            "email": "={{ $('01_Webhook_Lead_Intake').item.json.body.email }}",
+            "phone": "={{ $('01_Webhook_Lead_Intake').item.json.body.phone }}",
+            "service_needed": "={{ $('01_Webhook_Lead_Intake').item.json.body.service_needed }}",
+            "budget": "={{ $('01_Webhook_Lead_Intake').item.json.body.budget }}",
+            "urgency": "={{ $('01_Webhook_Lead_Intake').item.json.body.urgency }}",
+            "score": "={{ $json.ai_score }}",
+            "pain_point": "={{ $json.pain_point }}",
+            "urgency_level": "={{ $json.urgency_level }}",
+            "next_action": "={{ $json.next_action }}",
+            "follow_up_message": "={{ $json.follow_up_message }}",
+            "status": "Logged"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "service_needed",
+              "displayName": "service_needed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "budget",
+              "displayName": "budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgency",
+              "displayName": "urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pain_point",
+              "displayName": "pain_point",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "urgency_level",
+              "displayName": "urgency_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "next_action",
+              "displayName": "next_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "follow_up_message",
+              "displayName": "follow_up_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        736,
+        96
+      ],
+      "id": "c7265eab-76c9-4cb2-ad4d-255bc5ed5827",
+      "name": "06_Write_Lead_To_Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "mxBNuktdt2XsQVop",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "40130fda-f301-46bb-a15f-e2331247fe8e",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": "Hot",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "0492fc24-7833-481f-b139-e43872a11267",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": "Warm",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        944,
+        96
+      ],
+      "id": "407886e1-42d6-48c3-857e-0df06e637f91",
+      "name": "07_Check_Hot_Or_Warm"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL@example.com",
+        "subject": "=New {{ $json.score }} Lead — {{ $json.name }}",
+        "emailType": "text",
+        "message": "=New {{ $json.score }} Lead  Name: {{ $json.name }} Email: {{ $json.email }} Phone: {{ $json.phone }} Service Needed: {{ $json.service_needed }} Budget: {{ $json.budget }} Urgency: {{ $json.urgency }}  Pain Point: {{ $json.pain_point }}  Urgency Level: {{ $json.urgency_level }}  Next Action: {{ $json.next_action }}  Suggested Follow-up: {{ $json.follow_up_message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "202f4ba1-534b-4e59-82f4-1c11d3923445",
+      "name": "08_Send_Gmail_Notification",
+      "webhookId": "4f7cdd89-955c-4eb1-a853-9993d0716070",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "pAjNSSgMlvgSQiG0",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01_Webhook_Lead_Intake": {
+      "main": [
+        [
+          {
+            "node": "02_Check_Email_And_Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02_Check_Email_And_Phone": {
+      "main": [
+        [
+          {
+            "node": "03_Write_Error_To_Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04_OpenAI_Classify_Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04_OpenAI_Classify_Lead": {
+      "main": [
+        [
+          {
+            "node": "05_Parse_OpenAI_JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05_Parse_OpenAI_JSON": {
+      "main": [
+        [
+          {
+            "node": "06_Write_Lead_To_Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06_Write_Lead_To_Sheet": {
+      "main": [
+        [
+          {
+            "node": "07_Check_Hot_Or_Warm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07_Check_Hot_Or_Warm": {
+      "main": [
+        [
+          {
+            "node": "08_Send_Gmail_Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "504ccde0-b8bb-47a5-a267-9a4fc8512607",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7a779aded4c24285933094e70c0d8405b12cde2640671409567b289f0ef0aff8"
+  },
+  "nodeGroups": [],
+  "id": "4nCLQpBrNFendci0",
+  "tags": []
+}
