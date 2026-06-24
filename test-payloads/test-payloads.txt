@@ -1,0 +1,61 @@
+AI Lead Qualification & Routing Automation — Test Payloads
+
+Portfolio framing:
+I built this as a portfolio project using n8n.
+
+1. HOT LEAD TEST — Usman Farooq
+
+$body = @{
+  name = "Usman Farooq"
+  email = "usman@example.com"
+  phone = "+923331112222"
+  service_needed = "AI lead qualification automation"
+  budget = "250000 PKR"
+  urgency = "Urgent, need this week"
+  message = "We are getting many leads from ads and need an AI system to qualify them quickly and alert our sales team for serious buyers."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST -Uri "https://shoaib-portfolio.app.n8n.cloud/webhook-test/lead-intake" -ContentType "application/json" -Body $body
+
+
+2. COLD LEAD TEST — Bilal Test
+
+$body = @{
+  name = "Bilal Test"
+  email = "bilal@example.com"
+  phone = "+923001110000"
+  service_needed = "Maybe automation later"
+  budget = "10000 PKR"
+  urgency = "No rush"
+  message = "I am just exploring options and may need something in a few months. Not ready to start now."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST -Uri "https://shoaib-portfolio.app.n8n.cloud/webhook-test/lead-intake" -ContentType "application/json" -Body $body
+
+
+3. MISSING EMAIL TEST — Sara Ahmed
+
+$body = @{
+  name = "Sara Ahmed"
+  phone = "+923009876543"
+  service_needed = "Lead follow-up automation"
+  budget = "80000 PKR"
+  urgency = "Soon"
+  message = "I need help following up with leads automatically."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST -Uri "https://shoaib-portfolio.app.n8n.cloud/webhook-test/lead-intake" -ContentType "application/json" -Body $body
+
+
+4. MISSING PHONE TEST — Ayesha Missing Phone
+
+$body = @{
+  name = "Ayesha Missing Phone"
+  email = "ayesha@example.com"
+  service_needed = "CRM automation"
+  budget = "60000 PKR"
+  urgency = "This month"
+  message = "I want to automate my customer follow-up process, but I did not provide my phone number."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST -Uri "https://shoaib-portfolio.app.n8n.cloud/webhook-test/lead-intake" -ContentType "application/json" -Body $body
